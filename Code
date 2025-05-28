@@ -1,0 +1,164 @@
+# Project Structure Overview:
+# - /agents/api_agent.py
+# - /agents/scraper_agent.py
+# - /agents/retriever_agent.py
+# - /agents/language_agent.py
+# - /agents/voice_agent.py
+# - /orchestrator/main.py
+# - /streamlit_app/app.py
+# - /data_ingestion/fetch_data.py
+# - /docs/ai_tool_usage.md
+# - Dockerfile, requirements.txt, README.md
+
+# Below is an example for each key file/module.
+
+# /agents/api_agent.py
+from fastapi import FastAPI
+import yfinance as yf
+
+app = FastAPI()
+
+@app.get("/api/market_data")
+def get_market_data(ticker: str):
+    stock = yf.Ticker(ticker)
+    hist = stock.history(period="1d")
+    return {
+        "ticker": ticker,
+        "close": hist["Close"].iloc[-1] if not hist.empty else None
+    }
+
+# /agents/scraper_agent.py
+from fastapi import FastAPI
+import requests
+from bs4 import BeautifulSoup
+
+app = FastAPI()
+
+@app.get("/scrape/earnings")
+def scrape_earnings():
+    url = "https://www.investing.com/earnings-calendar/"
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.content, "html.parser")
+    return {"html_preview": soup.title.string}
+
+# /agents/retriever_agent.py
+from fastapi import FastAPI
+import faiss
+from sentence_transformers import SentenceTransformer
+import numpy as np
+
+app = FastAPI()
+model = SentenceTransformer("all-MiniLM-L6-v2")
+index = faiss.IndexFlatL2(384)
+texts = ["TSMC beat estimates", "Samsung missed earnings"]
+embeddings = model.encode(texts)
+index.add(np.array(embeddings))
+
+@app.get("/retrieve")
+def retrieve(query: str):
+    q_emb = model.encode([query])
+    D, I = index.search(np.array(q_emb), k=1)
+    return {"result": texts[I[0][0]], "score": float(D[0][0])}
+
+# /agents/language_agent.py
+from fastapi import FastAPI, Request
+from openai import OpenAI
+
+app = FastAPI()
+
+@app.post("/generate")
+async def generate(request: Request):
+    data = await request.json()
+    prompt = data["prompt"]
+    # Replace with your actual key and model
+    client = OpenAI(api_key="YOUR_KEY")
+    response = client.chat.completions.create(model="gpt-4", messages=[
+        {"role": "user", "content": prompt}
+    ])
+    return {"response": response.choices[0].message.content}
+
+# /agents/voice_agent.py
+from fastapi import FastAPI, UploadFile
+import whisper
+import pyttsx3
+import io
+
+app = FastAPI()
+model = whisper.load_model("base")
+tts = pyttsx3.init()
+
+@app.post("/voice/stt")
+async def speech_to_text(file: UploadFile):
+    audio = await file.read()
+    with open("temp.wav", "wb") as f:
+        f.write(audio)
+    result = model.transcribe("temp.wav")
+    return {"text": result["text"]}
+
+@app.post("/voice/tts")
+async def text_to_speech(text: str):
+    tts.say(text)
+    tts.runAndWait()
+    return {"status": "spoken"}
+
+# /orchestrator/main.py
+from fastapi import FastAPI, Request
+import requests
+
+app = FastAPI()
+
+@app.post("/orchestrate")
+async def orchestrate(request: Request):
+    data = await request.json()
+    text = data["text"]
+
+    # Retrieve information
+    retrieval = requests.get("http://localhost:8002/retrieve", params={"query": text}).json()
+    if retrieval['score'] > 1.0:
+        return {"response": "Can you please clarify?"}
+
+    # Generate language
+    narrative = requests.post("http://localhost:8003/generate", json={"prompt": retrieval["result"]}).json()
+
+    return {"response": narrative["response"]}
+
+# /streamlit_app/app.py
+import streamlit as st
+import requests
+
+st.title("Morning Market Brief")
+user_input = st.text_input("Ask something:")
+
+if st.button("Submit") and user_input:
+    response = requests.post("http://localhost:8004/orchestrate", json={"text": user_input}).json()
+    st.write("Response:", response["response"])
+
+# Add placeholder files for: README.md, Dockerfile, and /docs/ai_tool_usage.md
+
+# Dockerfile example
+"""
+FROM python:3.9
+WORKDIR /app
+COPY . .
+RUN pip install -r requirements.txt
+CMD ["uvicorn", "orchestrator.main:app", "--host", "0.0.0.0", "--port", "8004"]
+"""
+
+# requirements.txt example
+"""
+fastapi
+uvicorn
+yfinance
+beautifulsoup4
+requests
+openai
+sentence-transformers
+faiss-cpu
+pyttsx3
+whisper
+streamlit
+"""
+
+# You can deploy all FastAPI services on different ports or use Docker Compose.
+# Let me know if you'd like help containerizing or deploying this project.
