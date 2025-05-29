@@ -10,7 +10,7 @@
 # - /docs/ai_tool_usage.md
 # - Dockerfile, requirements.txt, README.md
 
-# Below is an example for each key file/module.
+
 
 # /agents/api_agent.py
 from fastapi import FastAPI
@@ -134,31 +134,8 @@ if st.button("Submit") and user_input:
     response = requests.post("http://localhost:8004/orchestrate", json={"text": user_input}).json()
     st.write("Response:", response["response"])
 
-# Add placeholder files for: README.md, Dockerfile, and /docs/ai_tool_usage.md
 
-# Dockerfile example
-"""
-FROM python:3.9
-WORKDIR /app
-COPY . .
-RUN pip install -r requirements.txt
-CMD ["uvicorn", "orchestrator.main:app", "--host", "0.0.0.0", "--port", "8004"]
-"""
 
-# requirements.txt example
-"""
-fastapi
-uvicorn
-yfinance
-beautifulsoup4
-requests
-openai
-sentence-transformers
-faiss-cpu
-pyttsx3
-whisper
-streamlit
-"""
 
-# You can deploy all FastAPI services on different ports or use Docker Compose.
-# Let me know if you'd like help containerizing or deploying this project.
+
+
